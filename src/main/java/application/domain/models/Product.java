@@ -4,11 +4,12 @@ import application.domain.valueObjects.ProductStatus;
 import application.domain.valueObjects.ProductType;
 
 import java.util.Objects;
+import java.io.Serializable;
 
 /**
  * Producto comercializable en el catálogo de NexusMarket.
  */
-public class Product {
+public class Product implements Serializable {
 
     private String productCode;
     private String name;

@@ -12,10 +12,12 @@ import application.domain.ports.out.WarehouseRepositoryPort;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.stereotype.Service;
 
 /**
  * Casos de uso para controlar las existencias por producto y bodega.
  */
+@Service
 public class InventoryServiceImpl implements InventoryService {
 
     private final InventoryRepositoryPort inventories;
@@ -67,11 +69,14 @@ public class InventoryServiceImpl implements InventoryService {
         if (quantity <= 0) {
             throw new IllegalArgumentException("La cantidad consultada debe ser mayor que cero");
         }
-        return inventories.findAll().stream()
-                .filter(inventory -> inventory.getProduct() != null
-                        && inventory.getProduct().getProductCode() != null
-                        && inventory.getProduct().getProductCode().equals(product.getProductCode()))
-                .anyMatch(inventory -> inventory.getQuantity() >= quantity);
+        long available = 0;
+        for (Inventory inventory : inventories.findAll()) {
+            if (inventory != null && inventory.getProduct() != null
+                    && Objects.equals(inventory.getProduct().getProductCode(), product.getProductCode())) {
+                available = Math.addExact(available, inventory.getQuantity());
+            }
+        }
+        return available >= quantity;
     }
 
     @Override
@@ -153,11 +158,12 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     private int calculateWarehouseOccupancy(Warehouse warehouse) {
-        long occupancy = inventories.findAll().stream()
-                .filter(inventory -> inventory.getWarehouse() != null)
-                .filter(inventory -> sameWarehouse(inventory.getWarehouse(), warehouse))
-            .mapToLong(inventory -> inventory.getQuantity())
-                .sum();
+        long occupancy = 0;
+        for (Inventory inventory : inventories.findByWarehouse(warehouse)) {
+            if (inventory != null) {
+                occupancy = Math.addExact(occupancy, inventory.getQuantity());
+            }
+        }
         if (occupancy > Integer.MAX_VALUE) {
             throw new ArithmeticException("La ocupación de la bodega excede el límite permitido");
         }

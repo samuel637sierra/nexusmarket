@@ -2,12 +2,13 @@ package application.domain.models;
 
 import java.time.LocalDate;
 import java.time.Period;
+import java.io.Serializable;
 import java.util.Objects;
 
 /**
  * Información común de las personas que participan en NexusMarket.
  */
-public class Person {
+public class Person implements Serializable {
 
     private String personId;
     private String fullName;

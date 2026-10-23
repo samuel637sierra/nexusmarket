@@ -1,11 +1,12 @@
 package application.domain.models;
 
 import java.util.Objects;
+import java.io.Serializable;
 
 /**
  * Existencia de un producto en una bodega concreta.
  */
-public class Inventory {
+public class Inventory implements Serializable {
 
     private String inventoryCode;
     private Product product;

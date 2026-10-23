@@ -21,8 +21,12 @@ public interface InventoryRepositoryPort {
     List<Inventory> findAll();
 
     default List<Inventory> findByWarehouse(Warehouse warehouse) {
+        if (warehouse == null || warehouse.getWarehouseCode() == null) {
+            return List.of();
+        }
         return findAll().stream()
-                .filter(inventory -> inventory.getWarehouse() == warehouse)
+                .filter(inventory -> inventory != null && inventory.getWarehouse() != null
+                        && warehouse.getWarehouseCode().equals(inventory.getWarehouse().getWarehouseCode()))
                 .toList();
     }
 }

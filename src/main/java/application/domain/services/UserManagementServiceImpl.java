@@ -19,10 +19,12 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.stereotype.Service;
 
 /**
  * Casos de uso de registro, autenticación y administración de usuarios.
  */
+@Service
 public class UserManagementServiceImpl implements UserManagementService {
 
     private final UserRepositoryPort users;

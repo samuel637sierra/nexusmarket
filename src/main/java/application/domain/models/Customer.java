@@ -87,10 +87,14 @@ public class Customer extends User {
 
     public void addOrderToHistory(Order order) {
         Objects.requireNonNull(order, "El pedido es obligatorio");
-        if (order.getCustomer() != this) {
+        if (order.getCustomer() == null
+                || !Objects.equals(order.getCustomer().getPersonId(), getPersonId())) {
             throw new IllegalArgumentException("El pedido no pertenece al cliente");
         }
-        orderHistory.add(order);
+        if (orderHistory.stream().noneMatch(existing -> Objects.equals(
+                existing.getOrderCode(), order.getOrderCode()))) {
+            orderHistory.add(order);
+        }
     }
 
     private static String requireText(String value, String message) {

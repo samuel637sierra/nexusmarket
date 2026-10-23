@@ -1,12 +1,13 @@
 package application.domain.models;
 
 import java.time.LocalDate;
+import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Factura asociada a un pedido.
  */
-public class Invoice {
+public class Invoice implements Serializable {
 
     private String invoiceNumber;
     private Order order;

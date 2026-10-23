@@ -5,11 +5,12 @@ import application.domain.valueObjects.OrderStatus;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
+import java.io.Serializable;
 
 /**
  * Envío de un pedido desde una bodega hasta el cliente.
  */
-public class Shipment {
+public class Shipment implements Serializable {
 
     public static final String PREPARING = "PREPARING";
     public static final String IN_TRANSIT = "IN_TRANSIT";

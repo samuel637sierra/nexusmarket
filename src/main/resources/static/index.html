@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8f3">
+  <title>NexusMarket | Encuentra tu siguiente favorito</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/market.css">
+  <script src="/assets/market.js" defer></script>
+</head>
+<body>
+  <div class="announcement">Hecho para encontrar. Listo para llegar. <span>Compra protegida en cada pedido.</span></div>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="NexusMarket inicio"><span class="brand-mark">N</span><span>Nexus<span class="brand-light">Market</span></span></a>
+    <form class="search" id="search-form" role="search">
+      <label class="sr-only" for="search-input">Buscar productos</label>
+      <input id="search-input" name="search" placeholder="Busca algo que te guste" autocomplete="off">
+      <button type="submit">Buscar</button>
+    </form>
+    <nav class="header-actions" aria-label="Cuenta y carrito">
+      <button class="text-action" id="account-button" type="button">Ingresar</button>
+      <button class="cart-action" id="cart-button" type="button"><span class="cart-glyph" aria-hidden="true">+</span> Carrito <span class="cart-count" id="cart-count">0</span></button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="intro" aria-labelledby="intro-title">
+      <div class="intro-copy">
+        <p class="eyebrow"><span class="live-dot"></span> Un marketplace, miles de hallazgos</p>
+        <h1 id="intro-title">Lo que buscas.<br><span>Y lo que no sabías.</span></h1>
+        <p class="intro-text">Productos seleccionados de vendedores independientes, reunidos en un solo lugar.</p>
+        <a class="browse-link" href="#catalog">Explorar productos <span aria-hidden="true">↓</span></a>
+      </div>
+      <div class="intro-art" aria-label="Selección destacada de productos">
+        <img class="art-photo art-photo-main" src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=800&q=85" alt="Zapatilla roja de diseño">
+        <img class="art-photo art-photo-small" src="https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=480&q=85" alt="Reloj de pulsera minimalista">
+        <div class="art-tag"><span>Selección</span><strong>de hoy</strong></div>
+        <div class="art-stamp">N<br><small>°01</small></div>
+      </div>
+      <div class="intro-index"><span>01</span> / 04</div>
+    </section>
+
+    <section class="catalog-section" id="catalog" aria-labelledby="catalog-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">EL CATÁLOGO</p><h2 id="catalog-title">Encuentra tu próximo favorito</h2></div>
+        <label class="filter-control" for="type-filter">Filtrar
+          <select id="type-filter" aria-label="Filtrar por tipo">
+            <option value="">Todos</option>
+            <option value="PHYSICAL">Físicos</option>
+            <option value="DIGITAL">Digitales</option>
+          </select>
+        </label>
+      </div>
+      <div class="catalog-meta"><span id="result-count">Cargando catálogo...</span><span>Precios en COP</span></div>
+      <div class="product-grid" id="product-grid" aria-live="polite"></div>
+      <div class="empty-state" id="empty-state" hidden>
+        <div class="empty-mark">N</div>
+        <h3>Aún no hay productos publicados</h3>
+        <p>Cuando los vendedores publiquen sus productos, aparecerán aquí.</p>
+      </div>
+      <div class="error-state" id="error-state" hidden>
+        <p id="error-message">No se pudo cargar el catálogo.</p>
+        <button class="outline-button" id="retry-button" type="button">Reintentar</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <a class="brand footer-brand" href="/" aria-label="NexusMarket inicio"><span class="brand-mark">N</span><span>Nexus<span class="brand-light">Market</span></span></a>
+    <p>Un buen hallazgo merece un buen destino.</p>
+    <span>© 2026 NexusMarket</span>
+  </footer>
+
+  <dialog id="account-dialog" class="dialog">
+    <form method="dialog" class="dialog-close-form"><button class="close-button" aria-label="Cerrar">×</button></form>
+    <div class="dialog-head"><p class="eyebrow">TU CUENTA NEXUS</p><h2 id="account-title">Qué bueno verte</h2><p id="account-subtitle">Ingresa para comprar y seguir tus pedidos.</p></div>
+    <div class="account-tabs" role="tablist">
+      <button class="tab-button active" id="login-tab" type="button" role="tab" aria-selected="true">Ingresar</button>
+      <button class="tab-button" id="register-tab" type="button" role="tab" aria-selected="false">Crear cuenta</button>
+    </div>
+    <form id="account-form" class="form-stack">
+      <div class="register-fields" id="register-fields" hidden>
+        <label>Tipo de cuenta<select name="accountType" id="account-type"><option value="CUSTOMER">Comprar</option><option value="SELLER">Vender</option></select></label>
+        <label>Nombre completo<input name="fullName" autocomplete="name"></label>
+        <label>Correo electrónico<input name="email" type="email" autocomplete="email"></label>
+        <label>Teléfono<input name="phoneNumber" autocomplete="tel"></label>
+        <label>Dirección<input name="address" autocomplete="street-address"></label>
+        <div id="seller-fields" class="register-fields" hidden>
+          <label>Nombre comercial<input name="businessName" autocomplete="organization"></label>
+          <label>NIT<input name="taxIdentificationNumber" inputmode="numeric"></label>
+        </div>
+      </div>
+      <label>Usuario<input name="username" required autocomplete="username"></label>
+      <label>Contraseña<input name="password" type="password" required minlength="8" autocomplete="current-password"></label>
+      <p class="form-error" id="account-error" role="alert" hidden></p>
+      <button class="primary-button" id="account-submit" type="submit">Ingresar</button>
+    </form>
+  </dialog>
+
+  <dialog id="seller-dialog" class="dialog">
+    <form method="dialog" class="dialog-close-form"><button class="close-button" aria-label="Cerrar">×</button></form>
+    <div class="dialog-head"><p class="eyebrow">ESPACIO DE VENDEDOR</p><h2>Publica algo bueno</h2><p>Tu producto aparecerá en el catálogo después de publicarlo.</p></div>
+    <form id="seller-form" class="form-stack">
+      <label>Nombre del producto<input name="name" required maxlength="100"></label>
+      <label>Descripción<input name="description" required maxlength="500"></label>
+      <label>Precio en COP<input name="price" type="number" min="1" step="1" required></label>
+      <label>Tipo<select name="type"><option value="PHYSICAL">Físico</option><option value="DIGITAL">Digital</option></select></label>
+      <p class="form-error" id="seller-error" role="alert" hidden></p>
+      <button class="primary-button" type="submit">Crear y publicar</button>
+    </form>
+    <button class="text-action seller-logout" id="seller-logout" type="button">Cerrar sesión</button>
+  </dialog>
+
+  <dialog id="cart-dialog" class="dialog cart-dialog">
+    <form method="dialog" class="dialog-close-form"><button class="close-button" aria-label="Cerrar">×</button></form>
+    <div class="dialog-head"><p class="eyebrow">TU SELECCIÓN</p><h2>Carrito</h2><p id="cart-helper">Tus productos te esperan.</p></div>
+    <div class="cart-items" id="cart-items"></div>
+    <div class="cart-summary"><span>Total</span><strong id="cart-total">$0</strong></div>
+    <p class="form-error" id="cart-error" role="alert" hidden></p>
+    <button class="primary-button" id="checkout-button" type="button">Continuar al pago</button>
+  </dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

@@ -12,10 +12,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.stereotype.Service;
 
 /**
  * Casos de uso del catálogo de productos.
  */
+@Service
 public class ProductServiceImpl implements ProductService {
 
     private final ProductRepositoryPort productRepository;

@@ -4,12 +4,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Bodega donde se almacenan los productos físicos.
  */
-public class Warehouse {
+public class Warehouse implements Serializable {
 
     private String warehouseCode;
     private String name;

@@ -5,6 +5,7 @@ import application.domain.valueObjects.OrderStatus;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
@@ -14,7 +15,7 @@ import java.util.Objects;
 /**
  * Pedido realizado por un cliente.
  */
-public class Order {
+public class Order implements Serializable {
 
     private String orderCode;
     private Customer customer;

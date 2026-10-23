@@ -16,10 +16,12 @@ import application.domain.ports.out.ProductRepositoryPort;
 import application.domain.valueObjects.OrderStatus;
 
 import java.util.Objects;
+import org.springframework.stereotype.Service;
 
 /**
  * Casos de uso del ciclo de vida de pedidos.
  */
+@Service
 public class OrderServiceImpl implements OrderService {
 
     private final OrderRepositoryPort orders;
