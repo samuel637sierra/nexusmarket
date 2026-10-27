@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: nexusmarket
+    runtime: docker
+    plan: 0.5c-512mb
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: SPRING_PROFILES_ACTIVE
+        value: dev
+      - key: NEXUSMARKET_DB_PATH
+        value: /var/data/nexusmarket
+      - key: NEXUSMARKET_BOOTSTRAP_ADMIN_USERNAME
+        sync: false
+      - key: NEXUSMARKET_BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+    disk:
+      name: nexusmarket-data
+      mountPath: /var/data
+      sizeGB: 1

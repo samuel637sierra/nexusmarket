@@ -7,10 +7,22 @@ Marketplace Spring Boot con catálogo, usuarios, carrito, pedidos, inventario, e
 PowerShell:
 
 ```powershell
-.\mvnw.cmd spring-boot:run
+.\run.cmd
 ```
 
 La tienda queda en `http://localhost:8080`. Los datos de desarrollo se guardan en `data/nexusmarket.mv.db`; ese directorio está excluido de Git.
+
+## Publicar en Render
+
+El proyecto incluye un `Dockerfile` y un Blueprint en `render.yaml`. Para publicarlo:
+
+1. Sube este proyecto a un repositorio de GitHub.
+2. En Render, crea un **Blueprint** y conecta el repositorio.
+3. Configura `NEXUSMARKET_BOOTSTRAP_ADMIN_USERNAME` y `NEXUSMARKET_BOOTSTRAP_ADMIN_PASSWORD` cuando Render los solicite. La contraseña debe tener al menos 12 caracteres.
+4. Revisa el plan y el disco persistente indicados por el Blueprint antes de confirmar la creación. Render requiere un servicio de pago para conservar datos en un disco persistente.
+5. Cuando el despliegue termine, Render mostrará la URL pública `https://...onrender.com` para compartir.
+
+El servicio usa el perfil `dev`, por lo que los pagos son de prueba. H2 guarda sus datos en el disco persistente montado en `/var/data`.
 
 Las pruebas usan una base H2 en memoria:
 
