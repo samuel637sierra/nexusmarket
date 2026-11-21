@@ -13,8 +13,11 @@ import org.springframework.stereotype.Service;
 public class CustomerCartServiceImpl implements CustomerCartService {
     private final CustomerRepositoryPort customers;
     private final ProductRepositoryPort products;
+    private final ProductAvailabilityService availability;
 
-    public CustomerCartServiceImpl(CustomerRepositoryPort customers, ProductRepositoryPort products) {
+    public CustomerCartServiceImpl(CustomerRepositoryPort customers, ProductRepositoryPort products,
+                                   ProductAvailabilityService availability) {
+        this.availability = Objects.requireNonNull(availability, "El servicio de disponibilidad es obligatorio");
         this.customers = Objects.requireNonNull(customers, "El repositorio de clientes es obligatorio");
         this.products = Objects.requireNonNull(products, "El repositorio de productos es obligatorio");
     }
@@ -29,6 +32,14 @@ public class CustomerCartServiceImpl implements CustomerCartService {
         Customer customer = findCustomer(customerId);
         Product product = products.findByCode(requireText(productCode, "El código del producto es obligatorio"))
                 .orElseThrow(() -> new IllegalArgumentException("Producto no encontrado: " + productCode));
+        if (product.requiresShipping() && quantity > 0) {
+            int requested = Math.addExact(customer.getCart().getOrDefault(product, 0), quantity);
+            int available = availability.getTotalAvailable(product.getProductCode());
+            if (requested > available) {
+                throw new IllegalStateException("Stock insuficiente para " + product.getName()
+                        + ": solicitadas " + requested + ", disponibles " + available);
+            }
+        }
         customer.addProductToCart(product, quantity);
         customers.save(customer);
     }

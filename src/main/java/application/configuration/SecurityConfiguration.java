@@ -64,6 +64,8 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/api/products", "/api/products/*",
                             "/api/products/*/availability", "/api/products/analytics").permitAll()
                         .requestMatchers("/api/products/**").hasAnyRole("SELLER", "ADMINISTRATOR")
+                        .requestMatchers(HttpMethod.POST, "/api/orders/*/returns")
+                            .hasAnyRole("CUSTOMER", "ADMINISTRATOR")
                         .requestMatchers("/api/customers/**", "/api/orders/**", "/api/invoices/**")
                             .hasAnyRole("CUSTOMER", "ADMINISTRATOR", "SUPERVISOR")
                         .requestMatchers("/api/warehouses/**", "/api/inventory/**")
@@ -76,6 +78,8 @@ public class SecurityConfiguration {
                             .hasAnyRole("ADMINISTRATOR", "LOGISTICS_PROVIDER", "SUPERVISOR")
                         .requestMatchers("/api/sellers/**")
                             .hasAnyRole("SELLER", "ADMINISTRATOR", "SUPERVISOR")
+                        .requestMatchers("/api/admin/**")
+                            .hasAnyRole("ADMINISTRATOR", "SUPERVISOR")
                         .requestMatchers("/api/reports/**")
                             .hasAnyRole("ADMINISTRATOR", "SUPERVISOR")
                         .anyRequest().authenticated())

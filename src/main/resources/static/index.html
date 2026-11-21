@@ -22,6 +22,7 @@
     </form>
     <nav class="header-actions" aria-label="Cuenta y carrito">
       <button class="text-action" id="account-button" type="button">Ingresar</button>
+      <button class="text-action" id="orders-button" type="button" hidden>Mis pedidos</button>
       <button class="cart-action" id="cart-button" type="button"><span class="cart-glyph" aria-hidden="true">+</span> Carrito <span class="cart-count" id="cart-count">0</span></button>
     </nav>
   </header>
@@ -100,7 +101,7 @@
     </form>
   </dialog>
 
-  <dialog id="seller-dialog" class="dialog">
+  <dialog id="seller-dialog" class="dialog wide-dialog">
     <form method="dialog" class="dialog-close-form"><button class="close-button" aria-label="Cerrar">×</button></form>
     <div class="dialog-head"><p class="eyebrow">ESPACIO DE VENDEDOR</p><h2>Publica algo bueno</h2><p>Tu producto aparecerá en el catálogo después de publicarlo.</p></div>
     <form id="seller-form" class="form-stack">
@@ -111,7 +112,59 @@
       <p class="form-error" id="seller-error" role="alert" hidden></p>
       <button class="primary-button" type="submit">Crear y publicar</button>
     </form>
+    <section class="panel-section" aria-labelledby="seller-report-title" style="margin-top:28px">
+      <div class="panel-actions"><h3 id="seller-report-title" style="margin:0;flex:1">Mi reporte</h3>
+        <button class="small-button" id="seller-report-refresh" type="button">Actualizar</button></div>
+      <div id="seller-report"><p class="muted">Cargando reporte...</p></div>
+    </section>
     <button class="text-action seller-logout" id="seller-logout" type="button">Cerrar sesión</button>
+  </dialog>
+
+  <dialog id="orders-dialog" class="dialog wide-dialog">
+    <form method="dialog" class="dialog-close-form"><button class="close-button" aria-label="Cerrar">×</button></form>
+    <div class="dialog-head"><p class="eyebrow">TU CUENTA</p><h2>Mis pedidos</h2><p>Estado de cada producto. Los productos físicos entregados se pueden devolver.</p></div>
+    <p class="form-error" id="orders-error" role="alert" hidden></p>
+    <div id="orders-list"><p class="muted">Cargando pedidos...</p></div>
+    <button class="text-action seller-logout" id="customer-logout" type="button">Cerrar sesión</button>
+  </dialog>
+
+  <dialog id="admin-dialog" class="dialog wide-dialog">
+    <form method="dialog" class="dialog-close-form"><button class="close-button" aria-label="Cerrar">×</button></form>
+    <div class="dialog-head"><p class="eyebrow">OPERACIÓN</p><h2>Panel de operación</h2><p>Bodegas, inventario, envíos y reportes.</p></div>
+    <p class="form-error" id="admin-error" role="alert" hidden></p>
+    <section class="panel-section">
+      <h3>Inventario</h3>
+      <form class="panel-actions" id="warehouse-form">
+        <input name="warehouseCode" placeholder="Código bodega" required>
+        <input name="name" placeholder="Nombre" required>
+        <input name="address" placeholder="Dirección" required>
+        <input name="capacity" type="number" min="1" placeholder="Capacidad" required>
+        <button class="small-button" type="submit">Crear bodega</button>
+      </form>
+      <form class="panel-actions" id="stock-form">
+        <select name="productCode" id="stock-product" required></select>
+        <input name="warehouseCode" placeholder="Código bodega" required>
+        <input name="quantity" type="number" min="1" placeholder="Unidades" required>
+        <button class="small-button" type="submit">Agregar stock</button>
+      </form>
+    </section>
+    <section class="panel-section">
+      <div class="panel-actions"><h3 style="margin:0;flex:1">Pedidos y envíos</h3>
+        <input id="ship-warehouse" placeholder="Bodega de despacho" value="WH1">
+        <button class="small-button" id="admin-orders-refresh" type="button">Actualizar</button></div>
+      <div id="admin-orders"></div>
+    </section>
+    <section class="panel-section">
+      <div class="panel-actions"><h3 style="margin:0;flex:1">Reportes de vendedores</h3>
+        <select id="admin-seller"></select></div>
+      <div id="admin-seller-report"></div>
+    </section>
+    <section class="panel-section">
+      <div class="panel-actions"><h3 style="margin:0;flex:1">Reportes globales</h3>
+        <select id="global-report"><option value="sales">Ventas</option><option value="inventory">Inventario</option><option value="shipments">Envíos</option></select></div>
+      <div id="global-report-view"></div>
+    </section>
+    <button class="text-action seller-logout" id="admin-logout" type="button">Cerrar sesión</button>
   </dialog>
 
   <dialog id="cart-dialog" class="dialog cart-dialog">

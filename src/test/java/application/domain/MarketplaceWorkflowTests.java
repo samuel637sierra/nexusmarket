@@ -66,6 +66,10 @@ class MarketplaceWorkflowTests {
         private ShipmentTrackingPort tracking;
         @Autowired
         private ObjectStore objectStore;
+    @Autowired
+    private application.domain.services.OrderReturnService returns;
+    @Autowired
+    private application.domain.services.SellerSalesAnalyticsService sellerAnalytics;
 
     @Test
     void completesPhysicalPurchaseAndInvoiceFlow() {
@@ -86,10 +90,17 @@ class MarketplaceWorkflowTests {
                 "Carrera 1", "customer-" + suffix, "customer-password-123"));
         assertNotEquals("customer-password-123", customer.getPassword());
         assertTrue(passwords.matches("customer-password-123", customer.getPassword()));
-        carts.addProduct(customer.getPersonId(), product.getProductCode(), 2);
-        assertThrows(IllegalStateException.class, () -> checkout.checkout(customer.getPersonId()));
+        assertThrows(IllegalStateException.class,
+                () -> carts.addProduct(customer.getPersonId(), product.getProductCode(), 2));
         inventory.addStock(new application.domain.cmd.AddStockCommand(
                 product.getProductCode(), warehouse.getWarehouseCode(), 5));
+        assertThrows(IllegalStateException.class,
+                () -> carts.addProduct(customer.getPersonId(), product.getProductCode(), 6));
+        assertTrue(carts.viewCart(customer.getPersonId()).isEmpty());
+        carts.addProduct(customer.getPersonId(), product.getProductCode(), 1);
+        carts.addProduct(customer.getPersonId(), product.getProductCode(), 1);
+        assertEquals(1, carts.viewCart(customer.getPersonId()).size());
+        assertEquals(2, carts.viewCart(customer.getPersonId()).values().iterator().next());
         Order order = checkout.checkout(customer.getPersonId());
 
         assertEquals(251.0, order.getTotalAmount(), 0.001);
@@ -117,6 +128,23 @@ class MarketplaceWorkflowTests {
         assertTrue(invoices.exportInvoice(invoice.getInvoiceNumber()).startsWith("data:application/pdf;base64,"));
         assertEquals(47.69, invoices.calculateTaxes(invoice.getInvoiceNumber()), 0.001);
 
+        assertThrows(IllegalStateException.class,
+                () -> returns.returnProduct(order.getOrderCode(), product.getProductCode(), 3));
+        var orderReturn = returns.returnProduct(order.getOrderCode(), product.getProductCode(), 1);
+        assertEquals(seller.getSellerCode(), orderReturn.sellerCode());
+        assertEquals(125.5, orderReturn.amount(), 0.001);
+        Order returnedOrder = orders.getOrder(order.getOrderCode());
+        assertEquals(OrderStatus.DELIVERED, returnedOrder.getStatus());
+        assertEquals(1, returnedOrder.getReturnedQuantity(product.getProductCode()));
+        assertEquals(125.5, returnedOrder.getRefundedAmount(), 0.001);
+        assertEquals(4, inventory.getAvailableStock(product.getProductCode(), warehouse.getWarehouseCode()));
+        var report = sellerAnalytics.buildReport(seller.getSellerCode());
+        assertEquals(2, report.unitsSold());
+        assertEquals(1, report.unitsReturned());
+        assertEquals(125.5, report.netSales(), 0.001);
+        assertEquals(4, report.products().get(0).stockAvailable());
+        assertEquals(1, report.movements().stream().filter(m -> m.type().equals("RETURN")).count());
+
         carts.addProduct(customer.getPersonId(), product.getProductCode(), 1);
         Order unpaidOrder = checkout.checkout(customer.getPersonId());
         assertThrows(IllegalStateException.class,
@@ -124,7 +152,10 @@ class MarketplaceWorkflowTests {
         assertThrows(IllegalStateException.class,
                 () -> shipments.createShipment(new CreateShipmentCommand(
                         unpaidOrder.getOrderCode(), warehouse.getWarehouseCode())));
-        assertEquals(3, inventory.getAvailableStock(product.getProductCode(), warehouse.getWarehouseCode()));
+        assertEquals(4, inventory.getAvailableStock(product.getProductCode(), warehouse.getWarehouseCode()));
+        carts.addProduct(customer.getPersonId(), product.getProductCode(), 1);
+        carts.removeProduct(customer.getPersonId(), product.getProductCode());
+        assertTrue(carts.viewCart(customer.getPersonId()).isEmpty());
 
         Product digitalProduct = products.createProduct(new CreateProductCommand(
                 "Digital " + suffix, "Descarga de prueba", 12.0, ProductType.DIGITAL,
@@ -134,5 +165,7 @@ class MarketplaceWorkflowTests {
         Order digitalOrder = checkout.checkout(customer.getPersonId());
         assertTrue(orders.processPayment(new ProcessPaymentCommand(digitalOrder.getOrderCode())));
         assertEquals(OrderStatus.COMPLETED, orders.getOrder(digitalOrder.getOrderCode()).getStatus());
+        assertThrows(IllegalStateException.class,
+                () -> returns.returnProduct(digitalOrder.getOrderCode(), digitalProduct.getProductCode(), 1));
     }
 }

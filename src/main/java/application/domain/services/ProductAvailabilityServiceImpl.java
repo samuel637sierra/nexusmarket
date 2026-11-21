@@ -49,7 +49,7 @@ public class ProductAvailabilityServiceImpl implements ProductAvailabilityServic
                     : Math.addExact(existingQuantity.intValue(), inventory.getQuantity());
             quantities.put(warehouseCode, updatedQuantity);
         }
-        return Map.copyOf(quantities);
+        return java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(quantities));
     }
 
     @Override

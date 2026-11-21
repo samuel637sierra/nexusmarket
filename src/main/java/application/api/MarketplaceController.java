@@ -15,7 +15,10 @@ import application.domain.cmd.UpdateProductCommand;
 import application.domain.models.Product;
 import application.domain.models.Shipment;
 import application.domain.models.Warehouse;
+import application.domain.models.OrderReturn;
 import application.domain.ports.out.InvoiceRepositoryPort;
+import application.domain.ports.out.SellerRepositoryPort;
+import application.domain.ports.out.UserRepositoryPort;
 import application.domain.ports.out.ShipmentRepositoryPort;
 import application.domain.ports.out.WarehouseRepositoryPort;
 import application.domain.services.CartCheckoutService;
@@ -25,6 +28,7 @@ import application.domain.services.InventoryService;
 import application.domain.services.InvoiceService;
 import application.domain.services.MarketplaceReportService;
 import application.domain.services.OrderHistoryService;
+import application.domain.services.OrderReturnService;
 import application.domain.services.OrderService;
 import application.domain.services.ProductAvailabilityService;
 import application.domain.services.ProductCatalogAnalyticsService;
@@ -80,6 +84,9 @@ public class MarketplaceController {
     private final SellerSalesAnalyticsService sellerAnalytics;
     private final MarketplaceReportService reports;
     private final MarketplaceAccessPolicy access;
+    private final OrderReturnService returns;
+    private final SellerRepositoryPort sellers;
+    private final UserRepositoryPort userRepository;
 
     public MarketplaceController(UserManagementService users, ProductService products,
                                  ProductDiscoveryService productDiscovery,
@@ -95,7 +102,12 @@ public class MarketplaceController {
                                  WarehouseCapacityService warehouseCapacity,
                                  InvoiceService invoices, InvoiceRepositoryPort invoiceRepository,
                                  SellerSalesAnalyticsService sellerAnalytics,
-                                 MarketplaceReportService reports, MarketplaceAccessPolicy access) {
+                                 MarketplaceReportService reports, MarketplaceAccessPolicy access,
+                                 OrderReturnService returns, SellerRepositoryPort sellers,
+                                 UserRepositoryPort userRepository) {
+        this.returns = returns;
+        this.sellers = sellers;
+        this.userRepository = userRepository;
         this.users = users;
         this.products = products;
         this.productDiscovery = productDiscovery;
@@ -134,6 +146,12 @@ public class MarketplaceController {
         return users.authenticateUser(command)
                 .map(user -> ResponseEntity.ok(UserView.from(user)))
                 .orElseGet(() -> ResponseEntity.status(401).build());
+    }
+
+    @GetMapping("/auth/me")
+    public UserView currentUser(Authentication authentication) {
+        return userRepository.findByUsername(authentication.getName()).map(UserView::from)
+                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
     }
 
     @GetMapping("/products")
@@ -232,13 +250,13 @@ public class MarketplaceController {
     @PostMapping("/customers/{customerId}/checkout")
     public OrderView checkout(@PathVariable String customerId, Authentication authentication) {
         access.requireCustomerAccess(customerId, authentication);
-        return OrderView.from(checkout.checkout(customerId));
+        return orderView(checkout.checkout(customerId));
     }
 
     @GetMapping("/customers/{customerId}/orders")
     public List<OrderView> orderHistory(@PathVariable String customerId, Authentication authentication) {
         access.requireCustomerAccess(customerId, authentication);
-        return orderHistory.findByCustomer(customerId).stream().map(OrderView::from).toList();
+        return orderHistory.findByCustomer(customerId).stream().map(this::orderView).toList();
     }
 
     @GetMapping("/customers/{customerId}/summary")
@@ -251,7 +269,7 @@ public class MarketplaceController {
     @GetMapping("/orders/{orderCode}")
     public OrderView getOrder(@PathVariable String orderCode, Authentication authentication) {
         access.requireOrderAccess(orderCode, authentication);
-        return OrderView.from(orders.getOrder(orderCode));
+        return orderView(orders.getOrder(orderCode));
     }
 
     @PostMapping("/orders/{orderCode}/payment")
@@ -260,6 +278,27 @@ public class MarketplaceController {
         boolean paid = orders.processPayment(new ProcessPaymentCommand(orderCode));
         return Map.of("orderCode", orderCode, "paid", paid,
                 "status", orders.getOrder(orderCode).getStatus().name());
+    }
+
+    @PostMapping("/orders/{orderCode}/returns")
+    public Map<String, Object> returnProduct(@PathVariable String orderCode, @RequestBody ReturnRequest request,
+                                             Authentication authentication) {
+        access.requireOrderAccess(orderCode, authentication);
+        OrderReturn orderReturn = returns.returnProduct(orderCode, request.productCode(),
+                request.quantity() == null ? 1 : request.quantity());
+        return Map.of("return", orderReturn, "order", orderView(orders.getOrder(orderCode)));
+    }
+
+    @GetMapping("/orders/{orderCode}/returns")
+    public List<OrderReturn> listReturns(@PathVariable String orderCode, Authentication authentication) {
+        access.requireOrderAccess(orderCode, authentication);
+        return orders.getOrder(orderCode).getReturns();
+    }
+
+    @GetMapping("/inventory/{productCode}")
+    public Map<String, Object> productInventory(@PathVariable String productCode) {
+        return Map.of("productCode", productCode, "total", availability.getTotalAvailable(productCode),
+                "byWarehouse", availability.getStockByWarehouse(productCode));
     }
 
     @PostMapping("/warehouses")
@@ -356,6 +395,41 @@ public class MarketplaceController {
                 "salesByProduct", sellerAnalytics.calculateSalesByProduct(sellerCode));
     }
 
+    @GetMapping("/sellers/{sellerCode}/report")
+    public SellerSalesAnalyticsService.SellerReport sellerReport(@PathVariable String sellerCode,
+                                                                 Authentication authentication) {
+        access.requireSellerAccess(sellerCode, authentication);
+        return sellerAnalytics.buildReport(sellerCode);
+    }
+
+    @GetMapping("/sellers/{sellerCode}/products")
+    public List<ProductView> sellerProducts(@PathVariable String sellerCode, Authentication authentication) {
+        access.requireSellerAccess(sellerCode, authentication);
+        return sellers.findBySellerCode(sellerCode).orElseThrow().getProducts().stream()
+                .map(product -> ProductView.from(products.findProduct(product.getProductCode())))
+                .toList();
+    }
+
+    @GetMapping("/admin/orders")
+    public List<Map<String, Object>> adminOrders() {
+        List<Shipment> allShipments = shipmentRepository.findAll();
+        return orderHistory.findAll().stream().map(order -> {
+            Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("order", orderView(order));
+            row.put("shipment", allShipments.stream()
+                    .filter(shipment -> order.getOrderCode().equals(shipment.getOrder().getOrderCode()))
+                    .map(ShipmentView::from).findFirst().orElse(null));
+            return row;
+        }).toList();
+    }
+
+    @GetMapping("/admin/sellers")
+    public List<Map<String, String>> adminSellers() {
+        return sellers.findAll().stream()
+                .map(seller -> Map.of("sellerCode", seller.getSellerCode(), "businessName", seller.getBusinessName()))
+                .toList();
+    }
+
     @GetMapping("/reports/{type}")
     public ResponseEntity<byte[]> downloadReport(@PathVariable String type) {
         byte[] content = switch (type.toLowerCase(java.util.Locale.ROOT)) {
@@ -368,6 +442,19 @@ public class MarketplaceController {
                 .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"nexus-" + type + ".csv\"")
                 .body(content);
+    }
+
+    private OrderView orderView(application.domain.models.Order order) {
+        return OrderView.from(order, code -> {
+            try {
+                return returns.findSellerCode(code);
+            } catch (IllegalStateException missing) {
+                return null;
+            }
+        });
+    }
+
+    public record ReturnRequest(String productCode, Integer quantity) {
     }
 
     public record CartItemRequest(String productCode, int quantity) {

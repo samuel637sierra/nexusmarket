@@ -10,6 +10,8 @@ import java.io.Serializable;
  * Producto comercializable en el catálogo de NexusMarket.
  */
 public class Product implements Serializable {
+    // Fijado al valor previo para leer los objetos ya persistidos en H2.
+    private static final long serialVersionUID = 5225871097571430850L;
 
     private String productCode;
     private String name;
@@ -130,6 +132,18 @@ public class Product implements Serializable {
 
     public boolean requiresShipping() {
         return type == ProductType.PHYSICAL;
+    }
+
+    // Identidad por código: el carrito y los pedidos se deserializan y deben reconocer el mismo producto.
+    @Override
+    public boolean equals(Object other) {
+        return this == other || (other instanceof Product product && productCode != null
+                && productCode.equals(product.productCode));
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(productCode);
     }
 
     private void ensureNotDiscontinued() {
