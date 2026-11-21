@@ -59,6 +59,13 @@ public final class InMemoryInfrastructureAdapters {
         public boolean refundPayment(Order order) {
             return order != null && order.getStatus() == OrderStatus.PAID;
         }
+
+        @Override
+        // Se invoca con la devolución ya registrada en el pedido: lo reembolsado no puede superar lo cobrado.
+        public boolean refundPartial(Order order, double amount) {
+            return order != null && amount > 0 && order.getRefundedAmount() <= order.getTotalAmount()
+                    && (order.getStatus() == OrderStatus.DELIVERED || order.getStatus() == OrderStatus.COMPLETED);
+        }
     }
 
     public static final class ShipmentTrackingAdapter implements ShipmentTrackingPort {
@@ -199,12 +206,14 @@ public final class InMemoryInfrastructureAdapters {
 
         @Override
         public byte[] generateSalesReport() {
-            StringBuilder csv = new StringBuilder("orderCode,status,total\n");
+            StringBuilder csv = new StringBuilder("orderCode,status,total,refunded,net\n");
             orders.findAll().stream()
                     .filter(order -> REVENUE_STATUSES.contains(order.getStatus()))
                     .forEach(order -> csv.append(order.getOrderCode()).append(',')
                             .append(order.getStatus()).append(',')
-                            .append(String.format(Locale.ROOT, "%.2f", order.getTotalAmount())).append('\n'));
+                            .append(String.format(Locale.ROOT, "%.2f,%.2f,%.2f", order.getTotalAmount(),
+                                    order.getRefundedAmount(), order.getTotalAmount() - order.getRefundedAmount()))
+                            .append('\n'));
             return csv.toString().getBytes(StandardCharsets.UTF_8);
         }
 

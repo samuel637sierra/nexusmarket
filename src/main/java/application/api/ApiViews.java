@@ -3,6 +3,7 @@ package application.api;
 import application.domain.models.Customer;
 import application.domain.models.Invoice;
 import application.domain.models.Order;
+import application.domain.models.OrderReturn;
 import application.domain.models.Product;
 import application.domain.models.Shipment;
 import application.domain.models.User;
@@ -54,20 +55,37 @@ public final class ApiViews {
     }
 
     public record OrderView(String orderCode, String customerId, LocalDate orderDate,
-                            double total, String status, boolean requiresShipping,
-                            Map<String, Integer> items) {
+                            double total, double refundedAmount, String status, boolean requiresShipping,
+                            Map<String, Integer> items, List<OrderLineView> lines, List<OrderReturn> returns) {
         public static OrderView from(Order order) {
+            return from(order, code -> null);
+        }
+
+        public static OrderView from(Order order, java.util.function.Function<String, String> sellerOf) {
             Map<String, Integer> items = new LinkedHashMap<>();
+            List<OrderLineView> lines = new java.util.ArrayList<>();
             for (Map.Entry<Product, Integer> item : order.getProducts().entrySet()) {
                 Product product = Objects.requireNonNull(item.getKey(), "El producto del pedido es obligatorio");
-                Integer quantity = Objects.requireNonNull(item.getValue(), "La cantidad del pedido es obligatoria");
-                items.put(product.getProductCode(), quantity.intValue());
+                int quantity = Objects.requireNonNull(item.getValue(), "La cantidad del pedido es obligatoria");
+                int returned = order.getReturnedQuantity(product.getProductCode());
+                String lineStatus = returned == 0 ? order.getStatus().name()
+                        : returned == quantity ? "RETURNED" : "PARTIALLY_RETURNED";
+                items.put(product.getProductCode(), quantity);
+                lines.add(new OrderLineView(product.getProductCode(), product.getName(), product.getType().name(),
+                        sellerOf.apply(product.getProductCode()), product.getPrice(), quantity, returned,
+                        lineStatus));
             }
             return new OrderView(order.getOrderCode(),
                     order.getCustomer() == null ? null : order.getCustomer().getPersonId(),
-                    order.getOrderDate(), order.getTotalAmount(), order.getStatus().name(),
-                    order.requiresShipping(), Map.copyOf(items));
+                    order.getOrderDate(), order.getTotalAmount(), order.getRefundedAmount(),
+                    order.getStatus().name(), order.requiresShipping(), java.util.Collections.unmodifiableMap(items),
+                    List.copyOf(lines),
+                    order.getReturns());
         }
+    }
+
+    public record OrderLineView(String productCode, String name, String type, String sellerCode,
+                                double unitPrice, int quantity, int returnedQuantity, String status) {
     }
 
     public record ShipmentView(String shipmentCode, String orderCode, String status,

@@ -26,6 +26,9 @@ const elements = {
   accountDialog: document.querySelector("#account-dialog"),
   cartDialog: document.querySelector("#cart-dialog"),
   sellerDialog: document.querySelector("#seller-dialog"),
+  ordersDialog: document.querySelector("#orders-dialog"),
+  adminDialog: document.querySelector("#admin-dialog"),
+  ordersButton: document.querySelector("#orders-button"),
   accountButton: document.querySelector("#account-button"),
   cartButton: document.querySelector("#cart-button"),
   cartCount: document.querySelector("#cart-count"),
@@ -91,6 +94,10 @@ function renderProducts() {
         <div><p class="product-name">${escapeHtml(product.name)}</p><p class="product-type">${escapeHtml(product.description || label)}</p></div>
         <strong class="product-price">${formatPrice(product.price)}</strong>
       </div>
+      <div class="qty-row">
+        <input class="qty-input" type="number" min="1" value="1" data-qty="${escapeHtml(product.productCode)}" aria-label="Cantidad de ${escapeHtml(product.name)}">
+        <button class="small-button" type="button" data-add="${escapeHtml(product.productCode)}">Agregar</button>
+      </div>
     </article>`;
   }).join("");
 }
@@ -126,8 +133,18 @@ function setAccount(account, username, password) {
   state.auth = `Basic ${btoa(`${username}:${password}`)}`;
   sessionStorage.setItem("nexus-account", JSON.stringify(account));
   sessionStorage.setItem("nexus-auth", state.auth);
-  elements.accountButton.textContent = account.role === "SELLER"
-    ? "Mi tienda" : account.fullName?.split(" ")[0] || "Mi cuenta";
+  updateAccountButtons();
+}
+
+const OPERATOR_ROLES = ["ADMINISTRATOR", "SUPERVISOR"];
+
+function updateAccountButtons() {
+  const role = state.account?.role;
+  elements.accountButton.textContent = !role ? "Ingresar"
+    : role === "SELLER" ? "Mi tienda"
+    : OPERATOR_ROLES.includes(role) ? "Operación"
+    : state.account.fullName?.split(" ")[0] || "Mi cuenta";
+  elements.ordersButton.hidden = role !== "CUSTOMER";
 }
 
 function clearAccount() {
@@ -135,7 +152,7 @@ function clearAccount() {
   state.auth = null;
   sessionStorage.removeItem("nexus-account");
   sessionStorage.removeItem("nexus-auth");
-  elements.accountButton.textContent = "Ingresar";
+  updateAccountButtons();
 }
 
 function showToast(message) {
@@ -181,10 +198,16 @@ function renderCart(totalFromApi) {
 
 async function addToCart(productCode) {
   if (!requireAccount()) return;
+  if (state.account.role !== "CUSTOMER") {
+    showToast("Solo los compradores pueden agregar al carrito.");
+    return;
+  }
+  const qtyInput = [...document.querySelectorAll("[data-qty]")].find((input) => input.dataset.qty === productCode);
+  const quantity = Math.max(1, Number(qtyInput?.value) || 1);
   try {
     await api(`/api/customers/${encodeURIComponent(state.account.personId)}/cart/items`, {
       method: "POST",
-      body: JSON.stringify({ productCode, quantity: 1 }),
+      body: JSON.stringify({ productCode, quantity }),
     });
     await refreshCart();
     showToast("Agregado a tu carrito");
@@ -319,12 +342,221 @@ async function checkout() {
     if (!payment.paid) throw new Error("El pago no fue aprobado. El pedido sigue pendiente.");
     elements.cartDialog.close();
     await refreshCart();
-    showToast(`Pedido confirmado: ${order.orderCode}`);
+    showToast(`Pedido pagado: ${order.orderCode}`);
   } catch (error) {
     elements.cartError.textContent = error.message;
     elements.cartError.hidden = false;
   } finally {
     elements.checkoutButton.disabled = false;
+  }
+}
+
+const STATUS_LABELS = {
+  PENDING_PAYMENT: "Pendiente de pago", PAID: "Pagado", SHIPPED: "Enviado", DELIVERED: "Entregado",
+  COMPLETED: "Completado", CANCELLED: "Cancelado", RETURNED: "Devuelto y reembolsado",
+  PARTIALLY_RETURNED: "Devuelto parcialmente", PREPARING: "Preparando", IN_TRANSIT: "En tránsito",
+  SALE: "Venta", RETURN: "Devolución", PUBLISHED: "Publicado", SUSPENDED: "Suspendido",
+  PHYSICAL: "Físico", DIGITAL: "Digital",
+};
+
+function pill(status) {
+  const tone = ["RETURNED", "PARTIALLY_RETURNED", "RETURN", "CANCELLED"].includes(status) ? "warn"
+    : ["DELIVERED", "COMPLETED", "PAID", "SALE", "PUBLISHED"].includes(status) ? "ok" : "";
+  return `<span class="pill ${tone}">${escapeHtml(STATUS_LABELS[status] || status || "—")}</span>`;
+}
+
+function table(columns, rows) {
+  if (!rows.length) return "<p class='muted'>Sin registros.</p>";
+  return `<div class="table-wrap"><table class="data-table"><thead><tr>${columns.map((column) =>
+    `<th class="${column.num ? "num" : ""}">${escapeHtml(column.label)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) =>
+    `<tr>${columns.map((column) => `<td class="${column.num ? "num" : ""}">${column.render(row)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+
+function stat(label, value) {
+  return `<div class="stat"><span>${escapeHtml(label)}</span><strong>${value}</strong></div>`;
+}
+
+const code = (value) => `<code>${escapeHtml(value ?? "—")}</code>`;
+
+async function loadSellerReport(sellerCode, target) {
+  if (!sellerCode) {
+    target.innerHTML = "";
+    return;
+  }
+  target.innerHTML = "<p class='muted'>Cargando reporte...</p>";
+  try {
+    const report = await api(`/api/sellers/${encodeURIComponent(sellerCode)}/report`);
+    target.innerHTML = `<p class="muted">${escapeHtml(report.businessName)} · ${code(report.sellerCode)}</p>
+      <div class="stat-row">${stat("Unidades vendidas", report.unitsSold)}${stat("Unidades devueltas", report.unitsReturned)}
+      ${stat("Ventas brutas", formatPrice(report.grossSales))}${stat("Reembolsado", formatPrice(report.refundedAmount))}
+      ${stat("Ventas netas", formatPrice(report.netSales))}</div>
+      <h3>Productos e inventario</h3>
+      ${table([
+        { label: "Producto", render: (row) => `${escapeHtml(row.name)}<br>${code(row.productCode)}` },
+        { label: "Tipo", render: (row) => pill(row.type) },
+        { label: "Estado", render: (row) => pill(row.status) },
+        { label: "Vendidas", num: true, render: (row) => row.unitsSold },
+        { label: "Devueltas", num: true, render: (row) => row.unitsReturned },
+        { label: "Bruto", num: true, render: (row) => formatPrice(row.grossSales) },
+        { label: "Reembolso", num: true, render: (row) => formatPrice(row.refundedAmount) },
+        { label: "Neto", num: true, render: (row) => formatPrice(row.netSales) },
+        { label: "Stock", num: true, render: (row) => row.type === "DIGITAL" ? "—" : row.stockAvailable },
+      ], report.products)}
+      <h3 style="margin-top:16px">Movimientos (compras, devoluciones y reembolsos)</h3>
+      ${table([
+        { label: "Fecha", render: (row) => escapeHtml(row.date) },
+        { label: "Tipo", render: (row) => pill(row.type) },
+        { label: "Pedido", render: (row) => code(row.orderCode) },
+        { label: "Producto", render: (row) => escapeHtml(row.productName) },
+        { label: "Unid.", num: true, render: (row) => row.quantity },
+        { label: "Monto", num: true, render: (row) => formatPrice(row.amount) },
+        { label: "Efecto stock", num: true, render: (row) => row.stockChange > 0 ? `+${row.stockChange}` : row.stockChange },
+      ], report.movements)}`;
+  } catch (error) {
+    target.innerHTML = `<p class="form-error">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function openOrders() {
+  elements.ordersDialog.showModal();
+  loadOrders();
+}
+
+async function loadOrders() {
+  const target = document.querySelector("#orders-list");
+  try {
+    const orders = await api(`/api/customers/${encodeURIComponent(state.account.personId)}/orders`);
+    target.innerHTML = orders.length ? orders.map((order) => `<article class="order-card">
+      <header><span>${code(order.orderCode)} · ${escapeHtml(order.orderDate)}</span>
+        <span>${pill(order.status)} Total ${formatPrice(order.total)}${order.refundedAmount ? ` · Reembolsado ${formatPrice(order.refundedAmount)}` : ""}</span></header>
+      ${table([
+        { label: "Producto", render: (line) => escapeHtml(line.name) },
+        { label: "Tipo", render: (line) => pill(line.type) },
+        { label: "Vendedor", render: (line) => code(line.sellerCode) },
+        { label: "Cant.", num: true, render: (line) => line.quantity },
+        { label: "Devueltas", num: true, render: (line) => line.returnedQuantity },
+        { label: "Estado", render: (line) => pill(line.status) },
+        { label: "", render: (line) => line.type === "PHYSICAL" && ["DELIVERED", "COMPLETED"].includes(order.status)
+          && line.returnedQuantity < line.quantity
+          ? `<button class="small-button" type="button" data-order="${escapeHtml(order.orderCode)}" data-return="${escapeHtml(line.productCode)}">Devolver 1</button>` : "" },
+      ], order.lines)}
+    </article>`).join("") : "<p class='muted'>Aún no tienes pedidos.</p>";
+  } catch (error) {
+    target.innerHTML = `<p class="form-error">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function returnItem(button, orderCode, productCode) {
+  const error = document.querySelector("#orders-error");
+  error.hidden = true;
+  button.disabled = true;
+  try {
+    const result = await api(`/api/orders/${encodeURIComponent(orderCode)}/returns`, {
+      method: "POST", body: JSON.stringify({ productCode, quantity: 1 }),
+    });
+    showToast(`Devolución ${result.return.returnCode} reembolsada: ${formatPrice(result.return.amount)}`);
+    await loadOrders();
+  } catch (failure) {
+    error.textContent = failure.message;
+    error.hidden = false;
+    button.disabled = false;
+  }
+}
+
+function adminError(message) {
+  const error = document.querySelector("#admin-error");
+  error.textContent = message || "";
+  error.hidden = !message;
+}
+
+async function openAdmin() {
+  elements.adminDialog.showModal();
+  adminError();
+  try {
+    const [products, sellers] = await Promise.all([api("/api/products"), api("/api/admin/sellers")]);
+    document.querySelector("#stock-product").innerHTML = products.filter((product) => product.type === "PHYSICAL")
+      .map((product) => `<option value="${escapeHtml(product.productCode)}">${escapeHtml(product.name)}</option>`).join("");
+    document.querySelector("#admin-seller").innerHTML = `<option value="">Elige un vendedor</option>${sellers.map((seller) =>
+      `<option value="${escapeHtml(seller.sellerCode)}">${escapeHtml(seller.businessName)}</option>`).join("")}`;
+  } catch (error) {
+    adminError(error.message);
+  }
+  loadAdminOrders();
+  loadGlobalReport();
+}
+
+async function adminSubmit(event, path, body, message) {
+  event.preventDefault();
+  adminError();
+  const form = event.currentTarget;
+  try {
+    await api(path, { method: "POST", body: JSON.stringify(body(new FormData(form))) });
+    showToast(message);
+    loadGlobalReport();
+  } catch (error) {
+    adminError(error.message);
+  }
+}
+
+async function loadAdminOrders() {
+  const target = document.querySelector("#admin-orders");
+  try {
+    const rows = await api("/api/admin/orders");
+    target.innerHTML = table([
+      { label: "Pedido", render: (row) => `${code(row.order.orderCode)}<br><span class="muted">${escapeHtml(row.order.orderDate)}</span>` },
+      { label: "Estado", render: (row) => pill(row.order.status) },
+      { label: "Productos", render: (row) => row.order.lines.map((line) =>
+        `${escapeHtml(line.name)} ×${line.quantity} ${line.returnedQuantity ? pill(line.status) : ""}`).join("<br>") },
+      { label: "Total", num: true, render: (row) => formatPrice(row.order.total) },
+      { label: "Envío", render: (row) => row.shipment ? `${code(row.shipment.shipmentCode)} ${pill(row.shipment.status)}` : "—" },
+      { label: "", render: (row) => {
+        if (!row.shipment && row.order.status === "PAID" && row.order.requiresShipping) {
+          return `<button class="small-button" data-ship-action="create" data-code="${escapeHtml(row.order.orderCode)}">Crear envío</button>`;
+        }
+        if (row.shipment?.status === "PREPARING") {
+          return `<button class="small-button" data-ship-action="dispatch" data-code="${escapeHtml(row.shipment.shipmentCode)}">Despachar</button>`;
+        }
+        if (row.shipment?.status === "IN_TRANSIT") {
+          return `<button class="small-button" data-ship-action="deliver" data-code="${escapeHtml(row.shipment.shipmentCode)}">Entregar</button>`;
+        }
+        return "";
+      } },
+    ], rows);
+  } catch (error) {
+    target.innerHTML = `<p class="form-error">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function shipmentAction(button, action, value) {
+  adminError();
+  button.disabled = true;
+  try {
+    if (action === "create") {
+      await api("/api/shipments", { method: "POST", body: JSON.stringify({
+        orderCode: value, warehouseCode: document.querySelector("#ship-warehouse").value.trim() }) });
+    } else {
+      await api(`/api/shipments/${encodeURIComponent(value)}/${action}`, { method: "POST" });
+    }
+    showToast("Envío actualizado");
+    await loadAdminOrders();
+    loadGlobalReport();
+  } catch (error) {
+    adminError(error.message);
+    button.disabled = false;
+  }
+}
+
+async function loadGlobalReport() {
+  const type = document.querySelector("#global-report").value;
+  const target = document.querySelector("#global-report-view");
+  try {
+    const response = await fetch(`/api/reports/${type}`, { headers: { Authorization: state.auth } });
+    if (!response.ok) throw new Error("No tienes permiso para ver este reporte.");
+    const [header, ...lines] = (await response.text()).trim().split("\n").map((line) => line.split(","));
+    target.innerHTML = table(header.map((label, index) => ({ label, render: (row) => escapeHtml(row[index] ?? "") })),
+      lines.filter((line) => line.length > 1));
+  } catch (error) {
+    target.innerHTML = `<p class="form-error">${escapeHtml(error.message)}</p>`;
   }
 }
 
@@ -350,12 +582,14 @@ elements.accountButton.addEventListener("click", () => {
   if (state.account) {
     if (state.account.role === "SELLER") {
       elements.sellerDialog.showModal();
+      loadSellerReport(state.account.sellerCode, document.querySelector("#seller-report"));
       return;
     }
-    clearAccount();
-    state.cart.clear();
-    renderCart();
-    showToast("Sesión cerrada");
+    if (OPERATOR_ROLES.includes(state.account.role)) {
+      openAdmin();
+      return;
+    }
+    openOrders();
   } else {
     elements.accountDialog.showModal();
   }
@@ -368,18 +602,43 @@ elements.cartButton.addEventListener("click", async () => {
 elements.checkoutButton.addEventListener("click", checkout);
 elements.accountForm.addEventListener("submit", submitAccount);
 document.querySelector("#seller-form").addEventListener("submit", submitSellerProduct);
-document.querySelector("#seller-logout").addEventListener("click", () => {
-  elements.sellerDialog.close();
-  clearAccount();
-  showToast("Sesión cerrada");
+for (const [button, dialog] of [["#seller-logout", elements.sellerDialog],
+  ["#customer-logout", elements.ordersDialog], ["#admin-logout", elements.adminDialog]]) {
+  document.querySelector(button).addEventListener("click", () => {
+    dialog.close();
+    clearAccount();
+    state.cart.clear();
+    renderCart();
+    showToast("Sesión cerrada");
+  });
+}
+elements.ordersButton.addEventListener("click", openOrders);
+document.querySelector("#orders-list").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-return]");
+  if (button) returnItem(button, button.dataset.order, button.dataset.return);
 });
+document.querySelector("#seller-report-refresh").addEventListener("click",
+  () => loadSellerReport(state.account.sellerCode, document.querySelector("#seller-report")));
+document.querySelector("#admin-orders-refresh").addEventListener("click", loadAdminOrders);
+document.querySelector("#admin-orders").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-ship-action]");
+  if (button) shipmentAction(button, button.dataset.shipAction, button.dataset.code);
+});
+document.querySelector("#admin-seller").addEventListener("change", (event) =>
+  loadSellerReport(event.target.value, document.querySelector("#admin-seller-report")));
+document.querySelector("#global-report").addEventListener("change", loadGlobalReport);
+document.querySelector("#warehouse-form").addEventListener("submit", (event) => adminSubmit(event, "/api/warehouses",
+  (form) => ({ warehouseCode: form.get("warehouseCode"), name: form.get("name"), address: form.get("address"),
+    capacity: Number(form.get("capacity")) }), "Bodega creada"));
+document.querySelector("#stock-form").addEventListener("submit", (event) => adminSubmit(event, "/api/inventory/stock",
+  (form) => ({ productCode: form.get("productCode"), warehouseCode: form.get("warehouseCode"),
+    quantity: Number(form.get("quantity")) }), "Stock agregado"));
 document.querySelector("#login-tab").addEventListener("click", () => setRegisterMode(false));
 document.querySelector("#register-tab").addEventListener("click", () => setRegisterMode(true));
 document.querySelector("#account-type").addEventListener("change", (event) => updateAccountType(event.target.value));
 document.querySelector("#retry-button").addEventListener("click", loadProducts);
 
-if (state.account && state.auth) elements.accountButton.textContent = state.account.fullName?.split(" ")[0] || "Mi cuenta";
-if (state.account?.role === "SELLER") elements.accountButton.textContent = "Mi tienda";
+updateAccountButtons();
 updateAccountType("CUSTOMER");
 loadProducts();
 refreshCart();

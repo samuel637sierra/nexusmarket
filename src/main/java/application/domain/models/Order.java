@@ -9,6 +9,8 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -16,6 +18,8 @@ import java.util.Objects;
  * Pedido realizado por un cliente.
  */
 public class Order implements Serializable {
+    // Fijado al valor previo para leer los pedidos ya persistidos en H2.
+    private static final long serialVersionUID = 625026565155291286L;
 
     private String orderCode;
     private Customer customer;
@@ -25,6 +29,8 @@ public class Order implements Serializable {
     private final Map<Product, Integer> products = new LinkedHashMap<>();
     private final Map<OrderStatus, java.util.Set<OrderStatus>> allowedTransitions =
             new EnumMap<>(OrderStatus.class);
+    // Sin inicializador final: los pedidos persistidos antes de las devoluciones lo leen como null.
+    private List<OrderReturn> returns;
 
     public Order() {
         this.orderDate = LocalDate.now();
@@ -205,6 +211,55 @@ public class Order implements Serializable {
 
     public boolean isEmpty() {
         return products.isEmpty();
+    }
+
+    /**
+     * Registra la devolución y reembolso de un producto físico entregado. Solo afecta
+     * a ese producto: el estado del pedido y los demás ítems no cambian.
+     */
+    public OrderReturn registerReturn(Product product, int quantity, String sellerCode, String warehouseCode) {
+        Objects.requireNonNull(product, "El producto es obligatorio");
+        if (status != OrderStatus.DELIVERED && status != OrderStatus.COMPLETED) {
+            throw new IllegalStateException("Solo se pueden devolver productos de pedidos entregados");
+        }
+        if (!product.requiresShipping()) {
+            throw new IllegalStateException("Los productos digitales no admiten devolución");
+        }
+        int purchased = products.getOrDefault(product, 0);
+        if (purchased == 0) {
+            throw new IllegalArgumentException("El producto no pertenece al pedido: " + product.getProductCode());
+        }
+        if (quantity <= 0 || quantity > purchased - getReturnedQuantity(product.getProductCode())) {
+            throw new IllegalStateException("La cantidad a devolver supera la cantidad comprada pendiente de devolución");
+        }
+        double amount = BigDecimal.valueOf(product.getPrice()).multiply(BigDecimal.valueOf(quantity))
+                .setScale(2, RoundingMode.HALF_UP).doubleValue();
+        OrderReturn orderReturn = new OrderReturn("RET-" + java.util.UUID.randomUUID(), product.getProductCode(),
+                product.getName(), requireText(sellerCode, "El vendedor es obligatorio"), warehouseCode,
+                quantity, amount, LocalDate.now());
+        returns().add(orderReturn);
+        return orderReturn;
+    }
+
+    public List<OrderReturn> getReturns() {
+        return List.copyOf(returns());
+    }
+
+    public int getReturnedQuantity(String productCode) {
+        return returns().stream().filter(item -> item.productCode().equals(productCode))
+                .mapToInt(OrderReturn::quantity).sum();
+    }
+
+    public double getRefundedAmount() {
+        return returns().stream().map(item -> BigDecimal.valueOf(item.amount()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add).doubleValue();
+    }
+
+    private List<OrderReturn> returns() {
+        if (returns == null) {
+            returns = new ArrayList<>();
+        }
+        return returns;
     }
 
     private static String requireText(String value, String message) {

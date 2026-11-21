@@ -51,12 +51,20 @@ Rutas principales:
 - `POST /api/auth/register/customer` y `POST /api/auth/register/seller`
 - `POST /api/auth/login`
 - `GET /api/products`, `POST /api/products`, `POST /api/products/{code}/publish`
-- `GET /api/customers/{id}/cart`, `POST /api/customers/{id}/checkout`
-- `POST /api/orders/{code}/payment`
+- `GET /api/auth/me` (usuario autenticado)
+- `GET /api/sellers/{code}/products` (productos del vendedor, incluso sin publicar)
+- `GET /api/customers/{id}/cart`, `POST /api/customers/{id}/cart/items` (valida stock físico), `POST /api/customers/{id}/checkout`
+- `GET /api/orders/{code}`, `POST /api/orders/{code}/payment`
+- `POST /api/orders/{code}/returns` y `GET /api/orders/{code}/returns`: devolución y reembolso de un producto físico entregado; identifica al vendedor, repone stock en la bodega de origen y no modifica los demás ítems
+- `GET /api/inventory/{productCode}` (administrador/logística)
 - `POST /api/warehouses`, `POST /api/inventory/stock`
 - `POST /api/shipments`, `POST /api/shipments/{code}/dispatch`, `POST /api/shipments/{code}/deliver`
 - `POST /api/invoices`, `GET /api/invoices/{number}/export`
+- `GET /api/sellers/{code}/report`: ventas, inventario y movimientos (compras, devoluciones, reembolsos) del vendedor
+- `GET /api/admin/orders`, `GET /api/admin/sellers` (administrador/supervisor)
 - `GET /api/reports/{sales|inventory|shipments}`
+
+`scripts/demo-api.sh` recorre todos los flujos con sus GET de verificación y los intentos bloqueados por rol.
 
 ## Límites del entorno local
 
